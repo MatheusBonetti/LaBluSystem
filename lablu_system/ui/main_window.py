@@ -5,12 +5,13 @@ Janela principal do LaBlu System.
 import os
 import shutil
 import tempfile
+import traceback
 
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QLabel, QPushButton, QListWidget, QListWidgetItem, QFrame,
     QScrollArea, QMessageBox, QStatusBar, QToolButton, QMenu, QLineEdit,
-    QFileDialog, QStackedWidget
+    QFileDialog, QStackedWidget, QAbstractItemView
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QIcon
@@ -173,9 +174,12 @@ class MainWindow(QMainWindow):
 
         self.cat_list = QListWidget()
         self.cat_list.setObjectName("catList")
+        self.cat_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.cat_list.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.cat_list.currentItemChanged.connect(self._on_categoria_changed)
         self.cat_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.cat_list.customContextMenuRequested.connect(self._cat_context_menu)
+        self.cat_list.model().rowsMoved.connect(self._on_cat_reordered)
         fil_layout.addWidget(self.cat_list, stretch=1)
 
         sep_fil = QFrame()
@@ -224,9 +228,12 @@ class MainWindow(QMainWindow):
 
         self.imp_cat_list = QListWidget()
         self.imp_cat_list.setObjectName("catList")
+        self.imp_cat_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.imp_cat_list.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.imp_cat_list.currentItemChanged.connect(self._imp_on_categoria_changed)
         self.imp_cat_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.imp_cat_list.customContextMenuRequested.connect(self._imp_cat_context_menu)
+        self.imp_cat_list.model().rowsMoved.connect(self._on_imp_cat_reordered)
         imp_layout.addWidget(self.imp_cat_list, stretch=1)
 
         sep_imp = QFrame()
@@ -565,12 +572,20 @@ class MainWindow(QMainWindow):
         self.cat_list.clear()
         all_item = QListWidgetItem("📦  Todos os Filamentos")
         all_item.setData(Qt.ItemDataRole.UserRole, None)
+        all_item.setFlags(all_item.flags() & ~Qt.ItemFlag.ItemIsDragEnabled)
         self.cat_list.addItem(all_item)
         for cat in self.db.get_categorias():
             item = QListWidgetItem(f"  {cat['nome']}")
             item.setData(Qt.ItemDataRole.UserRole, cat["id"])
             self.cat_list.addItem(item)
         self.cat_list.setCurrentRow(0)
+
+    def _on_cat_reordered(self, *_):
+        ids = [
+            self.cat_list.item(i).data(Qt.ItemDataRole.UserRole)
+            for i in range(1, self.cat_list.count())
+        ]
+        self.db.reorder_categorias(ids)
 
     def _on_categoria_changed(self, current, previous):
         if current is None:
@@ -774,7 +789,7 @@ class MainWindow(QMainWindow):
             tmp.close()
             PDFExporter(self.db).export(temp_path, mostrar_sku=mostrar_sku)
         except Exception as e:
-            QMessageBox.critical(self, "Erro ao gerar PDF", str(e))
+            QMessageBox.critical(self, "Erro ao gerar PDF", f"Não foi possível gerar o PDF:\n\n{e}")
             return
         os.startfile(temp_path)
         reply = QMessageBox.question(self, "Salvar PDF",
@@ -835,12 +850,20 @@ class MainWindow(QMainWindow):
         self.imp_cat_list.clear()
         all_item = QListWidgetItem("🖨️  Todas as Impressoras")
         all_item.setData(Qt.ItemDataRole.UserRole, None)
+        all_item.setFlags(all_item.flags() & ~Qt.ItemFlag.ItemIsDragEnabled)
         self.imp_cat_list.addItem(all_item)
         for cat in self.db.get_categorias_impressoras():
             item = QListWidgetItem(f"  {cat['nome']}")
             item.setData(Qt.ItemDataRole.UserRole, cat["id"])
             self.imp_cat_list.addItem(item)
         self.imp_cat_list.setCurrentRow(0)
+
+    def _on_imp_cat_reordered(self, *_):
+        ids = [
+            self.imp_cat_list.item(i).data(Qt.ItemDataRole.UserRole)
+            for i in range(1, self.imp_cat_list.count())
+        ]
+        self.db.reorder_categorias_impressoras(ids)
 
     def _imp_on_categoria_changed(self, current, previous):
         if current is None:
@@ -1049,7 +1072,7 @@ class MainWindow(QMainWindow):
             tmp.close()
             PDFExporterImpressoras(self.db).export(temp_path, mostrar_sku=mostrar_sku)
         except Exception as e:
-            QMessageBox.critical(self, "Erro ao gerar PDF", str(e))
+            QMessageBox.critical(self, "Erro ao gerar PDF", f"Não foi possível gerar o PDF:\n\n{e}")
             return
         os.startfile(temp_path)
         reply = QMessageBox.question(self, "Salvar PDF",

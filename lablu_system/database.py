@@ -172,6 +172,13 @@ class Database:
         conn.close()
         return True, "Categoria excluída."
 
+    def reorder_categorias(self, ids_ordered):
+        conn = self.get_connection()
+        for ordem, cat_id in enumerate(ids_ordered):
+            conn.execute("UPDATE categorias SET ordem = ? WHERE id = ?", (ordem, cat_id))
+        conn.commit()
+        conn.close()
+
     # ─── FILAMENTOS ───────────────────────────────────────────────────────────
 
     def get_filamentos(self, categoria_id=None, apenas_em_estoque=False):
@@ -436,6 +443,13 @@ class Database:
         conn.commit()
         conn.close()
         return True, "Categoria excluída."
+
+    def reorder_categorias_impressoras(self, ids_ordered):
+        conn = self.get_connection()
+        for ordem, cat_id in enumerate(ids_ordered):
+            conn.execute("UPDATE categorias_impressoras SET ordem = ? WHERE id = ?", (ordem, cat_id))
+        conn.commit()
+        conn.close()
 
     # ─── IMPRESSORAS ──────────────────────────────────────────────────────────
 
