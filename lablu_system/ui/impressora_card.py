@@ -9,13 +9,14 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QPixmap, QCursor
 
-COL_ESTOQUE = 70
-COL_SKU     = 55
-COL_CODIGO  = 120
-COL_IMG     = 52
-COL_MODELO  = 200
-COL_PRECO   = 110
-COL_QTD     = 110
+COL_ESTOQUE      = 70
+COL_SKU          = 55
+COL_CODIGO       = 120
+COL_IMG          = 52
+COL_MODELO       = 200
+COL_PRECO_AVISTA = 110
+COL_PRECO        = 110
+COL_QTD          = 110
 
 
 class _ImageHoverLabel(QLabel):
@@ -169,7 +170,17 @@ class ImpressoraCard(QFrame):
         modelo_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(modelo_lbl)
 
-        # ── Preço ───────────────────────────────────────────────────────
+        # ── Preço à Vista ───────────────────────────────────────────────
+        avista = self.impressora.get("preco_avista", "").strip()
+        if avista and not avista.upper().startswith("R$"):
+            avista = f"R$ {avista}"
+        avista_lbl = QLabel(avista if avista else "—")
+        avista_lbl.setObjectName("cardPreco")
+        avista_lbl.setFixedWidth(COL_PRECO_AVISTA)
+        avista_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(avista_lbl)
+
+        # ── Preço (10x) ─────────────────────────────────────────────────
         preco = self.impressora.get("preco", "").strip()
         if preco and not preco.upper().startswith("R$"):
             preco = f"R$ {preco}"

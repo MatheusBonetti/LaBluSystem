@@ -112,8 +112,17 @@ class Database:
             cursor.execute("DROP INDEX IF EXISTS idx_filamentos_ativo")
             cursor.execute("ALTER TABLE filamentos DROP COLUMN ativo")
 
-        # Impressoras inativas
+        # Converte caminhos absolutos → só nome do arquivo (portabilidade)
+        for table in ("filamentos", "impressoras"):
+            for row in cursor.execute(f"SELECT id, imagem_path FROM {table} WHERE imagem_path != ''").fetchall():
+                p = Path(row[1])
+                if p.is_absolute():
+                    cursor.execute(f"UPDATE {table} SET imagem_path = ? WHERE id = ?", (p.name, row[0]))
+
+        # Impressoras inativas / migrações
         colunas_imp = [row[1] for row in cursor.execute("PRAGMA table_info(impressoras)").fetchall()]
+        if "preco_avista" not in colunas_imp:
+            cursor.execute("ALTER TABLE impressoras ADD COLUMN preco_avista TEXT DEFAULT ''")
         if "ativo" in colunas_imp:
             rows = cursor.execute(
                 "SELECT imagem_path FROM impressoras WHERE ativo = 0"
@@ -198,13 +207,20 @@ class Database:
         query += " ORDER BY c.nome, f.nome"
         rows = conn.execute(query, params).fetchall()
         conn.close()
-        return [dict(r) for r in rows]
+        result = [dict(r) for r in rows]
+        for r in result:
+            r["imagem_path"] = self.resolve_image_path(r.get("imagem_path", ""))
+        return result
 
     def get_filamento(self, filamento_id):
         conn = self.get_connection()
         row = conn.execute("SELECT * FROM filamentos WHERE id = ?", (filamento_id,)).fetchone()
         conn.close()
-        return dict(row) if row else None
+        if not row:
+            return None
+        r = dict(row)
+        r["imagem_path"] = self.resolve_image_path(r.get("imagem_path", ""))
+        return r
 
     def add_filamento(self, dados):
         conn = self.get_connection()
@@ -313,7 +329,7 @@ class Database:
         conn = self.get_connection()
         row = conn.execute("SELECT imagem_path FROM filamentos WHERE id = ?", (filamento_id,)).fetchone()
         if row and row[0]:
-            p = Path(row[0])
+            p = Path(self.resolve_image_path(row[0]))
             p.unlink(missing_ok=True)
         conn.execute("DELETE FROM filamentos WHERE id = ?", (filamento_id,))
         conn.commit()
@@ -332,7 +348,7 @@ class Database:
             ext = Path(source_path).suffix.lower()
             dest_path = self.images_dir / f"filamento_{filamento_id}{ext}"
             shutil.copy2(source_path, dest_path)
-        return str(dest_path)
+        return dest_path.name  # só o nome do arquivo, sem caminho absoluto
 
     def duplicate_filamento(self, filamento_id, categoria_id=None, preco=None):
         """Duplica um filamento (incluindo imagem) e retorna o novo ID."""
@@ -349,13 +365,13 @@ class Database:
         if preco is not None:
             dados["peso_total"] = preco
         new_id = self.add_filamento(dados)
-        old_img = fil.get("imagem_path", "")
+        old_img = fil.get("imagem_path", "")  # já resolvido (absoluto)
         if old_img and Path(old_img).exists():
             ext = Path(old_img).suffix
             new_img = self.images_dir / f"filamento_{new_id}{ext}"
             shutil.copy2(old_img, str(new_img))
             conn = self.get_connection()
-            conn.execute("UPDATE filamentos SET imagem_path = ? WHERE id = ?", (str(new_img), new_id))
+            conn.execute("UPDATE filamentos SET imagem_path = ? WHERE id = ?", (new_img.name, new_id))
             conn.commit()
             conn.close()
         return new_id
@@ -385,14 +401,22 @@ class Database:
                 if new_path != img_file:
                     img_file.unlink()
                     conn = self.get_connection()
+                    # banco armazena só o nome do arquivo
                     conn.execute(
                         "UPDATE filamentos SET imagem_path = ? WHERE imagem_path = ?",
-                        (str(new_path), str(img_file))
+                        (new_path.name, img_file.name)
                     )
                     conn.commit()
                     conn.close()
             except Exception:
                 pass
+
+    def resolve_image_path(self, stored: str) -> str:
+        """Converte nome de arquivo armazenado → caminho absoluto real."""
+        if not stored:
+            return ""
+        p = Path(stored)
+        return str(p) if p.is_absolute() else str(self.images_dir / p)
 
     def get_image_path(self, relative_or_abs):
         if not relative_or_abs:
@@ -470,26 +494,34 @@ class Database:
         query += " ORDER BY c.nome, i.modelo"
         rows = conn.execute(query, params).fetchall()
         conn.close()
-        return [dict(r) for r in rows]
+        result = [dict(r) for r in rows]
+        for r in result:
+            r["imagem_path"] = self.resolve_image_path(r.get("imagem_path", ""))
+        return result
 
     def get_impressora(self, impressora_id):
         conn = self.get_connection()
         row = conn.execute("SELECT * FROM impressoras WHERE id = ?", (impressora_id,)).fetchone()
         conn.close()
-        return dict(row) if row else None
+        if not row:
+            return None
+        r = dict(row)
+        r["imagem_path"] = self.resolve_image_path(r.get("imagem_path", ""))
+        return r
 
     def add_impressora(self, dados):
         conn = self.get_connection()
         conn.execute("""
             INSERT INTO impressoras
-                (categoria_id, modelo, marca, sku, preco, imagem_path, em_estoque, quantidade)
-            VALUES (?,?,?,?,?,?,?,?)
+                (categoria_id, modelo, marca, sku, preco, preco_avista, imagem_path, em_estoque, quantidade)
+            VALUES (?,?,?,?,?,?,?,?,?)
         """, (
             dados.get("categoria_id"),
             dados.get("modelo", "").strip(),
             dados.get("marca", "").strip(),
             dados.get("sku", "").strip(),
             dados.get("preco", "").strip(),
+            dados.get("preco_avista", "").strip(),
             dados.get("imagem_path", ""),
             1 if dados.get("em_estoque", True) else 0,
             dados.get("quantidade", "").strip(),
@@ -503,7 +535,7 @@ class Database:
         conn = self.get_connection()
         conn.execute("""
             UPDATE impressoras SET
-                categoria_id=?, modelo=?, marca=?, sku=?, preco=?,
+                categoria_id=?, modelo=?, marca=?, sku=?, preco=?, preco_avista=?,
                 imagem_path=?, em_estoque=?, quantidade=?,
                 atualizado_em=CURRENT_TIMESTAMP
             WHERE id=?
@@ -513,6 +545,7 @@ class Database:
             dados.get("marca", "").strip(),
             dados.get("sku", "").strip(),
             dados.get("preco", "").strip(),
+            dados.get("preco_avista", "").strip(),
             dados.get("imagem_path", ""),
             1 if dados.get("em_estoque", True) else 0,
             dados.get("quantidade", "").strip(),
@@ -534,7 +567,7 @@ class Database:
         conn = self.get_connection()
         row = conn.execute("SELECT imagem_path FROM impressoras WHERE id = ?", (impressora_id,)).fetchone()
         if row and row[0]:
-            p = Path(row[0])
+            p = Path(self.resolve_image_path(row[0]))
             p.unlink(missing_ok=True)
         conn.execute("DELETE FROM impressoras WHERE id = ?", (impressora_id,))
         conn.commit()
@@ -553,7 +586,7 @@ class Database:
             ext = Path(source_path).suffix.lower()
             dest_path = self.images_dir / f"impressora_{impressora_id}{ext}"
             shutil.copy2(source_path, dest_path)
-        return str(dest_path)
+        return dest_path.name  # só o nome do arquivo, sem caminho absoluto
 
     def duplicate_impressora(self, impressora_id, categoria_id=None, preco=None):
         imp = self.get_impressora(impressora_id)
@@ -568,13 +601,13 @@ class Database:
         if preco is not None:
             dados["preco"] = preco
         new_id = self.add_impressora(dados)
-        old_img = imp.get("imagem_path", "")
+        old_img = imp.get("imagem_path", "")  # já resolvido (absoluto)
         if old_img and Path(old_img).exists():
             ext = Path(old_img).suffix
             new_img = self.images_dir / f"impressora_{new_id}{ext}"
             shutil.copy2(old_img, str(new_img))
             conn = self.get_connection()
-            conn.execute("UPDATE impressoras SET imagem_path = ? WHERE id = ?", (str(new_img), new_id))
+            conn.execute("UPDATE impressoras SET imagem_path = ? WHERE id = ?", (new_img.name, new_id))
             conn.commit()
             conn.close()
         return new_id

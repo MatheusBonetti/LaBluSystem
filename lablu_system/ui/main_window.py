@@ -461,13 +461,14 @@ class MainWindow(QMainWindow):
             lbl.setAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
             return lbl
 
-        from ui.impressora_card import COL_ESTOQUE as IE, COL_SKU as IS, COL_CODIGO as IC, COL_IMG as II, COL_MODELO as IM, COL_PRECO as IP, COL_QTD as IQ
+        from ui.impressora_card import COL_ESTOQUE as IE, COL_SKU as IS, COL_CODIGO as IC, COL_IMG as II, COL_MODELO as IM, COL_PRECO_AVISTA as IA, COL_PRECO as IP, COL_QTD as IQ
         hh.addWidget(hcol("ESTOQUE", IE))
         hh.addWidget(hcol("SKU", IS))
         hh.addWidget(hcol("CÓDIGO", IC))
         hh.addWidget(hcol("", II))
         hh.addWidget(hcol("MODELO", IM))
-        hh.addWidget(hcol("PREÇO", IP))
+        hh.addWidget(hcol("À VISTA", IA))
+        hh.addWidget(hcol("10x S/JUROS", IP))
         hh.addWidget(hcol("QTD", IQ))
         hh.addStretch()
         self.imp_content_layout.addWidget(self.imp_list_header)

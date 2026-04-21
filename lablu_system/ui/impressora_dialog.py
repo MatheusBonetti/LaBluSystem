@@ -103,9 +103,13 @@ class ImpressoraDialog(QDialog):
         self.marca_input.setPlaceholderText("Ex: Bambu Lab, Creality...")
         form.addRow("Código:", self.marca_input)
 
+        self.preco_avista_input = QLineEdit()
+        self.preco_avista_input.setPlaceholderText("Ex: R$ 3.800,00")
+        form.addRow("Preço à Vista:", self.preco_avista_input)
+
         self.preco_input = QLineEdit()
         self.preco_input.setPlaceholderText("Ex: R$ 4.500,00")
-        form.addRow("Preço:", self.preco_input)
+        form.addRow("Preço (10x):", self.preco_input)
 
         self.quantidade_input = QLineEdit()
         self.quantidade_input.setPlaceholderText("Ex: 3")
@@ -149,6 +153,7 @@ class ImpressoraDialog(QDialog):
         self.modelo_input.setText(imp.get("modelo", ""))
         self.sku_input.setText(imp.get("sku", ""))
         self.marca_input.setText(imp.get("marca", ""))
+        self.preco_avista_input.setText(imp.get("preco_avista", ""))
         self.preco_input.setText(imp.get("preco", ""))
         self.quantidade_input.setText(imp.get("quantidade", ""))
         img = imp.get("imagem_path", "")
@@ -194,6 +199,7 @@ class ImpressoraDialog(QDialog):
             "modelo": modelo,
             "sku": self.sku_input.text(),
             "marca": self.marca_input.text(),
+            "preco_avista": self.preco_avista_input.text(),
             "preco": self.preco_input.text(),
             "quantidade": self.quantidade_input.text(),
             "imagem_path": self.imagem_path,
