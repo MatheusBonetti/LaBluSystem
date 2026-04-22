@@ -3,7 +3,9 @@ Janela principal do LaBlu System.
 """
 
 import os
+import platform
 import shutil
+import subprocess
 import tempfile
 import traceback
 
@@ -792,7 +794,12 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Erro ao gerar PDF", f"Não foi possível gerar o PDF:\n\n{e}")
             return
-        os.startfile(temp_path)
+        if platform.system() == "Darwin":
+            subprocess.run(["open", temp_path])
+        elif platform.system() == "Windows":
+            os.startfile(temp_path)
+        else:
+            subprocess.run(["xdg-open", temp_path])
         reply = QMessageBox.question(self, "Salvar PDF",
             f"O PDF {tipo} foi aberto no visualizador.\n\nDeseja salvar uma cópia?",
             QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard,
@@ -1075,7 +1082,12 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Erro ao gerar PDF", f"Não foi possível gerar o PDF:\n\n{e}")
             return
-        os.startfile(temp_path)
+        if platform.system() == "Darwin":
+            subprocess.run(["open", temp_path])
+        elif platform.system() == "Windows":
+            os.startfile(temp_path)
+        else:
+            subprocess.run(["xdg-open", temp_path])
         reply = QMessageBox.question(self, "Salvar PDF",
             f"O PDF {tipo} foi aberto no visualizador.\n\nDeseja salvar uma cópia?",
             QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard,
